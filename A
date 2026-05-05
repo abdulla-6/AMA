@@ -1,0 +1,269 @@
+Create the Model
+This is the Dart class that represents one task from the API.
+Create a file: lib/models/task_model.dart
+
+class Task {
+  final int id;
+  final int userId;
+  final String title;
+  final String dueOn;
+  final String status;
+
+  Task({
+    required this.id,
+    required this.userId,
+    required this.title,
+    required this.dueOn,
+    required this.status,
+  });
+
+  // This converts the JSON from the API into a Task object
+  factory Task.fromJson(Map<String, dynamic> json) {
+    return Task(
+      id: json['id'],
+      userId: json['user_id'],
+      title: json['title'],
+      dueOn: json['due_on'],
+      status: json['status'],
+    );
+  }
+}
+
+
+
+
+Create the Fetch API Service
+This file handles calling the API and returning a list of tasks.
+First, add the http package to your pubspec.yaml:
+
+
+dependencies:
+  flutter:
+    sdk: flutter
+  http: ^1.2.0          # <-- add this line
+
+
+
+
+
+Now create the file: lib/services/task_service.dart
+
+
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+import '../models/task_model.dart';
+
+class TaskService {
+  static const String url =
+      'https://mahmoodyashar98.github.io/comments_api/comments.json';
+
+  // Fetches all tasks from the API
+  Future<List<Task>> fetchTasks() async {
+    final response = await http.get(Uri.parse(url));
+
+    if (response.statusCode == 200) {
+      // If the server returns 200 OK, parse the JSON
+      final List<dynamic> jsonList = json.decode(response.body);
+      return jsonList.map((json) => Task.fromJson(json)).toList();
+    } else {
+      // If the server returns an error, throw an exception
+      throw Exception('Failed to load tasks');
+    }
+  }
+}
+
+
+
+ Create the UI
+Replace everything in lib/main.dart with this:
+import 'package:flutter/material.dart';
+import 'models/task_model.dart';
+import 'services/task_service.dart';
+
+void main() {
+  runApp(const MyApp());
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'Task Manager',
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(
+        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF4C5ADB)),
+        useMaterial3: true,
+      ),
+      home: const TaskScreen(),
+    );
+  }
+}
+
+class TaskScreen extends StatefulWidget {
+  const TaskScreen({super.key});
+
+  @override
+  State<TaskScreen> createState() => _TaskScreenState();
+}
+
+class _TaskScreenState extends State<TaskScreen> {
+  // Will hold the tasks once loaded
+  late Future<List<Task>> _futureTasks;
+
+  @override
+  void initState() {
+    super.initState();
+    // Call the API when the screen first opens
+    _futureTasks = TaskService().fetchTasks();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFFF0F0F5),
+      appBar: AppBar(
+        backgroundColor: const Color(0xFF4C5ADB),
+        title: const Text(
+          'Task Manager',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        ),
+        iconTheme: const IconThemeData(color: Colors.white),
+      ),
+      body: FutureBuilder<List<Task>>(
+        future: _futureTasks,
+        builder: (context, snapshot) {
+          // While loading
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          // If there's an error
+          if (snapshot.hasError) {
+            return Center(child: Text('Error: ${snapshot.error}'));
+          }
+
+          // If data loaded successfully
+          final tasks = snapshot.data!;
+
+          return ListView.builder(
+            padding: const EdgeInsets.all(12),
+            itemCount: tasks.length,
+            itemBuilder: (context, index) {
+              final task = tasks[index];
+              final isCompleted = task.status == 'completed';
+
+              return Card(
+                margin: const EdgeInsets.only(bottom: 10),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border(
+                      left: BorderSide(
+                        color: isCompleted
+                            ? Colors.green
+                            : Colors.amber,
+                        width: 4,
+                      ),
+                    ),
+                  ),
+                  padding: const EdgeInsets.all(14),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Title + Badge row
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: Text(
+                              task.title,
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w500,
+                                decoration: isCompleted
+                                    ? TextDecoration.lineThrough
+                                    : null,
+                                color: isCompleted
+                                    ? Colors.grey
+                                    : Colors.black87,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: isCompleted
+                                  ? Colors.green.shade50
+                                  : Colors.amber.shade50,
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Text(
+                              isCompleted ? '✓ Done' : '⏳ Pending',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: isCompleted
+                                    ? Colors.green.shade700
+                                    : Colors.amber.shade800,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      // Due date + User row
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'Due: ${task.dueOn.substring(0, 10)}',
+                            style: const TextStyle(
+                                fontSize: 12, color: Colors.grey),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: Colors.grey.shade100,
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Text(
+                              'User #${task.userId}',
+                              style: const TextStyle(
+                                  fontSize: 11, color: Colors.grey),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          );
+        },
+      ),
+    );
+  }
+}
+
+
+
+
+
+final folder structure
+lib/
+├── main.dart               ← Step 3 (UI)
+├── models/
+│   └── task_model.dart     ← Step 1 (Model)
+└── services/
+    └── task_service.dart   ← Step 2 (API Service)
+
+
